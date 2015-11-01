@@ -18,13 +18,11 @@ namespace LiteDB
         public const int MAX_INDEX_LENGTH = 512;
 
         private PageService _pager;
-        private CacheService _cache;
 
         private Random _rand = new Random();
 
-        public IndexService(CacheService cache, PageService pager)
+        public IndexService(PageService pager)
         {
-            _cache = cache;
             _pager = pager;
         }
 

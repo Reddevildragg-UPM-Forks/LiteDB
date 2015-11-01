@@ -11,18 +11,15 @@ namespace LiteDB
     /// </summary>
     internal class TransactionService
     {
-        private DiskService _disk;
+        private IDiskService _disk;
         private CacheService _cache;
-        private JournalService _journal;
 
         private int _level = 0;
-        private DateTime _lastFileCheck = DateTime.Now;
 
-        internal TransactionService(DiskService disk, CacheService cache, JournalService journal)
+        internal TransactionService(IDiskService disk, CacheService cache)
         {
             _disk = disk;
             _cache = cache;
-            _journal = journal;
         }
 
         public bool IsInTransaction { get { return _level > 0; } }
@@ -34,17 +31,10 @@ namespace LiteDB
         {
             if (_level == 0)
             {
+                this.AvoidDirtyRead();
+
                 // lock (or try to) datafile
                 _disk.Lock();
-
-                // get header page from DISK to check changeID
-                var header = _disk.ReadPage<HeaderPage>(0);
-
-                // if changeID was changed, file was changed by another process
-                if (header.ChangeID != _cache.Header.ChangeID)
-                {
-                    _cache.Clear(header);
-                }
             }
 
             _level++;
@@ -59,7 +49,7 @@ namespace LiteDB
 
             if (_level == 1)
             {
-                _disk.UnLock();
+                _disk.Unlock();
 
                 _level = 0;
             }
@@ -78,31 +68,22 @@ namespace LiteDB
 
             if (_level == 1)
             {
-                if (_cache.HasDirtyPages())
+                if (_cache.HasDirtyPages)
                 {
+                    var header = _cache.GetPage<HeaderPage>(0);
+
                     // increase file changeID (back to 0 when overflow)
-                    _cache.Header.ChangeID = _cache.Header.ChangeID == ushort.MaxValue ? (ushort)0 : (ushort)(_cache.Header.ChangeID + (ushort)1);
+                    header.ChangeID = header.ChangeID == ushort.MaxValue ? (ushort)0 : (ushort)(header.ChangeID + (ushort)1);
 
-                    _cache.Header.IsDirty = true;
+                    header.IsDirty = true;
 
-                    // first i will save all dirty pages to a recovery file
-                    _journal.CreateJournalFile(() =>
-                    {
-                        // [transaction are now acepted] (all dirty pages are in journal file)
-                        // journal file still open in exlcusive mode, let's persist pages
-                        // if occurs a failure during "PersistDirtyPages" database will be recovered on next open
+                    _disk.WritePages(_cache.GetDirtyPages());
 
-                        // inside this file will be all locked for avoid inconsistent reads
-                        _disk.ProtectWriteFile(() =>
-                        {
-                            // persist all dirty pages
-                            _cache.PersistDirtyPages();
-                        });
-                    });
+                    _cache.Clear();
                 }
 
                 // unlock datafile
-                _disk.UnLock();
+                _disk.Unlock();
 
                 _level = 0;
             }
@@ -116,11 +97,11 @@ namespace LiteDB
         {
             if (_level == 0) return;
 
-            // Clear all pages from memory
-            _cache.Clear(null); 
+            // clear all pages from memory
+            _cache.Clear(); 
 
-            // Unlock datafile
-            _disk.UnLock();
+            // unlock datafile
+            _disk.Unlock();
 
             _level = 0;
         }
@@ -134,18 +115,18 @@ namespace LiteDB
             // if is in transaction pages are not dirty (begin trans was checked)
             if(this.IsInTransaction == true) return;
 
-            // check if file changed only after 1 second from last check
-            if (DateTime.Now.Subtract(_lastFileCheck).TotalMilliseconds < 1000) return;
+            var cache = _cache.GetPage<HeaderPage>(0);
 
-            _lastFileCheck = DateTime.Now;
+            if (cache == null) return;
 
             // get header page from DISK to check changeID
             var header = _disk.ReadPage<HeaderPage>(0);
 
             // if changeID was changed, file was changed by another process
-            if (header.ChangeID != _cache.Header.ChangeID)
+            if (cache.ChangeID != header.ChangeID)
             {
-                _cache.Clear(header);
+                _cache.Clear();
+                _cache.AddPage(header);
             }
         }
     }

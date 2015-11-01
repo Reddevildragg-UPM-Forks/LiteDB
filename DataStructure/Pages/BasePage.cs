@@ -116,7 +116,7 @@ namespace LiteDB
             return page;
         }
 
-        #region Page Header
+        #region Read/Write page
 
         public virtual void ReadHeader(BinaryReader reader)
         {
@@ -137,10 +137,6 @@ namespace LiteDB
             writer.Write((UInt16)this.ItemCount);
             writer.Write((UInt16)this.FreeBytes);
         }
-
-        #endregion
-
-        #region Page Content
 
         public virtual void ReadContent(BinaryReader reader)
         {

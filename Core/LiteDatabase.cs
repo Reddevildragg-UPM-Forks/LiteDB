@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LiteDB.Shell;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,17 +14,11 @@ namespace LiteDB
     {
         #region Properties + Ctor
 
-        public ConnectionString ConnectionString { get; private set; }
-
-        internal RecoveryService Recovery { get; private set; }
-
         internal CacheService Cache { get; private set; }
 
-        internal DiskService Disk { get; private set; }
+        internal IDiskService Disk { get; private set; }
 
         internal PageService Pager { get; private set; }
-
-        internal JournalService Journal { get; private set; }
 
         internal TransactionService Transaction { get; private set; }
 
@@ -38,39 +33,25 @@ namespace LiteDB
         /// <summary>
         /// Starts LiteDB database. Open database file or create a new one if not exits
         /// </summary>
-        /// <param name="connectionString">Full filename or connection string</param>
-        public LiteDatabase(string connectionString)
+        public LiteDatabase(string filename)
         {
-            this.ConnectionString = new ConnectionString(connectionString);
+            this.Disk = new FileDiskService(filename);
 
-            if (!File.Exists(this.ConnectionString.Filename))
-            {
-                DiskService.CreateNewDatafile(this.ConnectionString);
-            }
+            this.Disk.Initialize();
 
             this.Mapper = BsonMapper.Global;
 
-            this.Recovery = new RecoveryService(this.ConnectionString);
-
-            this.Recovery.TryRecovery();
-
-            this.Disk = new DiskService(this.ConnectionString);
-
-            this.Cache = new CacheService(this.Disk);
+            this.Cache = new CacheService();
 
             this.Pager = new PageService(this.Disk, this.Cache);
 
-            this.Journal = new JournalService(this.ConnectionString, this.Cache);
+            this.Indexer = new IndexService(this.Pager);
 
-            this.Indexer = new IndexService(this.Cache, this.Pager);
+            this.Data = new DataService(this.Pager);
 
-            this.Transaction = new TransactionService(this.Disk, this.Cache, this.Journal);
+            this.Collections = new CollectionService(this.Pager, this.Indexer, this.Data);
 
-            this.Data = new DataService(this.Disk, this.Cache, this.Pager);
-
-            this.Collections = new CollectionService(this.Cache, this.Pager, this.Indexer, this.Data);
-
-            this.UpdateDatabaseVersion();
+            this.Transaction = new TransactionService(this.Disk, this.Cache);
         }
 
         #endregion
@@ -197,6 +178,24 @@ namespace LiteDB
         public void Rollback()
         {
             this.Transaction.Rollback();
+        }
+
+        #endregion
+
+        #region Shell
+
+        private LiteShell _shell = null;
+
+        /// <summary>
+        /// Run a shell command in current database. Returns a BsonValue as result
+        /// </summary>
+        public BsonValue RunCommand(string command)
+        {
+            if (_shell == null)
+            {
+                _shell = new LiteShell(this);
+            }
+            return _shell.Run(command);
         }
 
         #endregion

@@ -8,14 +8,10 @@ namespace LiteDB
 {
     internal class DataService
     {
-        private DiskService _disk;
         private PageService _pager;
-        private CacheService _cache;
 
-        public DataService(DiskService disk, CacheService cache, PageService pager)
+        public DataService(PageService pager)
         {
-            _disk = disk;
-            _cache = cache;
             _pager = pager;
         }
 

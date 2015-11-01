@@ -40,6 +40,8 @@ namespace LiteDB
             this.FreeBytes = PAGE_AVAILABLE_BYTES - this.Nodes.Sum(x => x.Value.Length);
         }
 
+        #region Read/Write pages
+
         public override void ReadContent(BinaryReader reader)
         {
             this.Nodes = new Dictionary<ushort, IndexNode>(this.ItemCount);
@@ -84,5 +86,7 @@ namespace LiteDB
                 }
             }
         }
+
+        #endregion
     }
 }

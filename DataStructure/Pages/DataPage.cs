@@ -47,6 +47,32 @@ namespace LiteDB
             this.FreeBytes = PAGE_AVAILABLE_BYTES - this.DataBlocks.Sum(x => x.Value.Length);
         }
 
+        #region Read/Write pages
+
+        public override void ReadContent(BinaryReader reader)
+        {
+            this.DataBlocks = new Dictionary<ushort, DataBlock>(ItemCount);
+
+            for (var i = 0; i < ItemCount; i++)
+            {
+                var block = new DataBlock();
+
+                block.Page = this;
+                block.Position = new PageAddress(this.PageID, reader.ReadUInt16());
+                block.ExtendPageID = reader.ReadUInt32();
+
+                for (var j = 0; j < CollectionIndex.INDEX_PER_COLLECTION; j++)
+                {
+                    block.IndexRef[j] = reader.ReadPageAddress();
+                }
+
+                var size = reader.ReadUInt16();
+                block.Data = reader.ReadBytes(size);
+
+                this.DataBlocks.Add(block.Position.Index, block);
+            }
+        }
+
         public override void WriteContent(BinaryWriter writer)
         {
             foreach (var block in this.DataBlocks.Values)
@@ -62,28 +88,6 @@ namespace LiteDB
             }
         }
 
-        public override void ReadContent(BinaryReader reader)
-        {
-            this.DataBlocks = new Dictionary<ushort, DataBlock>(ItemCount);
-
-            for (var i = 0; i < ItemCount; i++)
-            {
-                var block = new DataBlock();
-
-                block.Page = this;
-                block.Position = new PageAddress(this.PageID, reader.ReadUInt16());
-                block.ExtendPageID = reader.ReadUInt32();
-
-                for(var j = 0; j < CollectionIndex.INDEX_PER_COLLECTION; j++)
-                {
-                    block.IndexRef[j] = reader.ReadPageAddress();
-                }
-
-                var size = reader.ReadUInt16();
-                block.Data = reader.ReadBytes(size);
-
-                this.DataBlocks.Add(block.Position.Index, block);
-            }            
-        }
+        #endregion
     }
 }

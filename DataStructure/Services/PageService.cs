@@ -9,10 +9,10 @@ namespace LiteDB
 {
     internal class PageService
     {
-        private DiskService _disk;
+        private IDiskService _disk;
         private CacheService _cache;
 
-        public PageService(DiskService disk, CacheService cache)
+        public PageService(IDiskService disk, CacheService cache)
         {
             _disk = disk;
             _cache = cache;
@@ -35,6 +35,8 @@ namespace LiteDB
 
             return page;
         }
+
+        public HeaderPage Header { get { return this.GetPage<HeaderPage>(0); } }
 
         /// <summary>
         /// Read all sequences pages from a start pageID (using NextPageID) 
@@ -63,18 +65,18 @@ namespace LiteDB
             var page = new T();
 
             // try get page from Empty free list
-            if(_cache.Header.FreeEmptyPageID != uint.MaxValue)
+            if(this.Header.FreeEmptyPageID != uint.MaxValue)
             {
-                var free = this.GetPage<BasePage>(_cache.Header.FreeEmptyPageID);
+                var free = this.GetPage<BasePage>(this.Header.FreeEmptyPageID);
 
                 // remove page from empty list
-                this.AddOrRemoveToFreeList(false, free, _cache.Header, ref _cache.Header.FreeEmptyPageID);
+                this.AddOrRemoveToFreeList(false, free, this.Header, ref this.Header.FreeEmptyPageID);
 
                 page.PageID = free.PageID;
             }
             else
             {
-                page.PageID = ++_cache.Header.LastPageID;
+                page.PageID = ++this.Header.LastPageID;
             }
 
             // if there a page before, just fix NextPageID pointer
@@ -87,7 +89,7 @@ namespace LiteDB
 
             // mark header and this new page as dirty, and then add to cache
             page.IsDirty = true;
-            _cache.Header.IsDirty = true;
+            this.Header.IsDirty = true;
 
             _cache.AddPage(page);
 
@@ -109,7 +111,7 @@ namespace LiteDB
                 page.IsDirty = true;
 
                 // add to empty free list
-                this.AddOrRemoveToFreeList(true, page, _cache.Header, ref _cache.Header.FreeEmptyPageID);
+                this.AddOrRemoveToFreeList(true, page, this.Header, ref this.Header.FreeEmptyPageID);
             }
         }
 

@@ -42,6 +42,8 @@ namespace LiteDB
             this.FreeBytes = PAGE_AVAILABLE_BYTES - this.Data.Length; // not used on ExtendPage
         }
 
+        #region Read/Write pages
+
         public override void ReadContent(BinaryReader reader)
         {
             this.Data = reader.ReadBytes(this.ItemCount);
@@ -51,5 +53,7 @@ namespace LiteDB
         {
             writer.Write(this.Data);
         }
+
+        #endregion
     }
 }

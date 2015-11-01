@@ -77,9 +77,6 @@ namespace LiteDB
 
         private byte[] GetChunkData(int index)
         {
-            // avoid too many extend pages on memory
-            _db.Cache.RemoveExtendPages();
-
             // check if there is no more chunks in this file
             var chunks = _db.GetCollection("_chunks");
 

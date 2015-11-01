@@ -38,7 +38,7 @@ namespace LiteDB
                     }
 
                     this.Database.Transaction.Commit();
-                    this.Database.Cache.Clear(null);
+                    this.Database.Cache.Clear();
 
                     if (more == false)
                     {

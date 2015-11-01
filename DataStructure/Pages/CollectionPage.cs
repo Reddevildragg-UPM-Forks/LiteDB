@@ -53,6 +53,8 @@ namespace LiteDB
             }
         }
 
+        #region Read/Write pages
+
         public override void ReadContent(BinaryReader reader)
         {
             this.CollectionName = reader.ReadString();
@@ -92,6 +94,8 @@ namespace LiteDB
                 writer.Write(index.Options.RemoveAccents);
             }
         }
+
+        #endregion
 
         #region Methods to work with index array
 

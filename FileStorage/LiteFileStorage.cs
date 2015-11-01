@@ -44,9 +44,6 @@ namespace LiteDB
             foreach (var chunk in file.CreateChunks(stream))
             {
                 this.Chunks.Insert(chunk);
-
-                // clear extend pages in cache to avoid too many use of memory in big files
-                this.Database.Cache.RemoveExtendPages();
             }
 
             // update fileLength to confirm full file length stored in disk
@@ -206,8 +203,6 @@ namespace LiteDB
             while (true)
             {
                 var del = Chunks.Delete(LiteFileInfo.GetChunckId(id, index++));
-
-                this.Database.Cache.RemoveExtendPages();
 
                 if (del == false) break;
             }

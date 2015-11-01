@@ -9,14 +9,12 @@ namespace LiteDB
 {
     internal class CollectionService
     {
-        private CacheService _cache;
         private PageService _pager;
         private IndexService _indexer;
         private DataService _data;
 
-        public CollectionService(CacheService cache, PageService pager, IndexService indexer, DataService data)
+        public CollectionService(PageService pager, IndexService indexer, DataService data)
         {
-            _cache = cache;
             _pager = pager;
             _indexer = indexer;
             _data = data;
@@ -29,9 +27,9 @@ namespace LiteDB
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("name");
 
-            if (_cache.Header.FirstCollectionPageID == uint.MaxValue) return null;
+            if (_pager.Header.FirstCollectionPageID == uint.MaxValue) return null;
 
-            var pages = _pager.GetSeqPages<CollectionPage>(_cache.Header.FirstCollectionPageID);
+            var pages = _pager.GetSeqPages<CollectionPage>(_pager.Header.FirstCollectionPageID);
 
             var col = pages.FirstOrDefault(x => x.CollectionName.Equals(name, StringComparison.InvariantCultureIgnoreCase));
 
@@ -47,7 +45,7 @@ namespace LiteDB
             if(!CollectionPage.NamePattern.IsMatch(name)) throw LiteException.InvalidFormat("CollectionName", name);
 
             // test collection limit
-            var pages = _pager.GetSeqPages<CollectionPage>(_cache.Header.FirstCollectionPageID);
+            var pages = _pager.GetSeqPages<CollectionPage>(_pager.Header.FirstCollectionPageID);
 
             if (pages.Count() >= CollectionPage.MAX_COLLECTIONS)
             {
@@ -57,7 +55,7 @@ namespace LiteDB
             var col = _pager.NewPage<CollectionPage>();
 
             // add page in collection list
-            _pager.AddOrRemoveToFreeList(true, col, _cache.Header, ref _cache.Header.FirstCollectionPageID);
+            _pager.AddOrRemoveToFreeList(true, col, _pager.Header, ref _pager.Header.FirstCollectionPageID);
 
             col.CollectionName = name;
             col.IsDirty = true;
@@ -76,7 +74,7 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<CollectionPage> GetAll()
         {
-            return _pager.GetSeqPages<CollectionPage>(_cache.Header.FirstCollectionPageID);
+            return _pager.GetSeqPages<CollectionPage>(_pager.Header.FirstCollectionPageID);
         }
 
         /// <summary>
@@ -121,7 +119,7 @@ namespace LiteDB
             }
 
             // remove page from collection list
-            _pager.AddOrRemoveToFreeList(false, col, _cache.Header, ref _cache.Header.FirstCollectionPageID);
+            _pager.AddOrRemoveToFreeList(false, col, _pager.Header, ref _pager.Header.FirstCollectionPageID);
 
             _pager.DeletePage(col.PageID, false);
         }
