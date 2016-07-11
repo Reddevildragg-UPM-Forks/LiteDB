@@ -1,14 +1,10 @@
-﻿using System;
-using System.Linq.Expressions;
-using System.Text;
-
-namespace LiteDB
+﻿namespace LiteDB
 {
-    internal static class StringExtensions
+    public static class StringExtensions
     {
         public static string ThrowIfEmpty(this string str, string message)
         {
-            if(StringExtensions.IsNullOrWhiteSpace(str))
+            if(str.IsNullOrWhiteSpace())
             {
                 throw new LiteException(message);
             }

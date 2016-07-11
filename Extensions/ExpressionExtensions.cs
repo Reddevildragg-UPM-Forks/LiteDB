@@ -4,7 +4,7 @@ using System.Text;
 
 namespace LiteDB
 {
-    internal static class ExpressionExtensions
+    public static class ExpressionExtensions
     {
         public static string GetPath<T, K>(this Expression<Func<T, K>> expr)
         {
@@ -28,7 +28,6 @@ namespace LiteDB
             while (me != null)
             {
                 var propertyName = me.Member.Name;
-                var propertyType = me.Type;
 
                 sb.Insert(0, propertyName + (sb.Length > 0 ? "." : ""));
 

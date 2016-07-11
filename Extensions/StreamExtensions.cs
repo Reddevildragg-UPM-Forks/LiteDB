@@ -2,7 +2,7 @@
 
 namespace LiteDB
 {
-    internal static class StreamExtensions
+    public static class StreamExtensions
     {
         public static byte ReadByte(this Stream stream, long position)
         {

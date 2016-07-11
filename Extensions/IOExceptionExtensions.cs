@@ -1,10 +1,12 @@
 ﻿using System.IO;
 using System.Runtime.InteropServices;
+#if NETFULL
 using System.Threading;
+#endif 
 
 namespace LiteDB
 {
-    internal static class IOExceptionExtensions
+    public static class IOExceptionExtensions
     {
         private const int ERROR_SHARING_VIOLATION = 32;
         private const int ERROR_LOCK_VIOLATION = 33;

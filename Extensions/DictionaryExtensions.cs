@@ -2,7 +2,7 @@
 
 namespace LiteDB
 {
-    internal static class DictionaryExtensions
+    public static class DictionaryExtensions
     {
         public static ushort NextIndex<T>(this Dictionary<ushort, T> dict)
         {
