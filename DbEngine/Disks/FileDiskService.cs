@@ -2,42 +2,39 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using LiteDB.Core;
-using LiteDB.Interfaces;
+using LiteDB.Plataform;
 
 namespace LiteDB
 {
-    public abstract class FileDiskServiceBase : IDiskService
+    /// <summary>
+    /// Implement NTFS File disk
+    /// </summary>
+    internal class FileDiskService : IDiskService
     {
         /// <summary>
         /// Position, on page, about page type
         /// </summary>
         private const int PAGE_TYPE_POSITION = 4;
 
-        protected Stream _stream;
+        private Stream _stream;
         private string _filename;
 
         private string _tempFilename;
-      protected Stream _journal;
+        private Stream _journal;
         private string _journalFilename;
         private bool _journalEnabled;
         private HashSet<uint> _journalPages = new HashSet<uint>();
 
-      protected Logger _log;
-protected TimeSpan _timeout;
-protected bool _readonly;
-      
+        private Logger _log;
+        private TimeSpan _timeout;
         private long _initialSize;
         private long _limitSize;
 
-      private IEncryption _crypto;
+        private IFileHandler _fileHandler;
 
-      private byte[] _password;
-      private bool _useEncryption;
+        #region Initialize disk
 
-      #region Initialize disk
-
-      public FileDiskServiceBase(ConnectionString conn, Logger log)
+        public FileDiskService(ConnectionString conn, Logger log)
         {
             // setting all class variables
             _filename = conn.GetValue<string>("filename", "");
@@ -47,23 +44,8 @@ protected bool _readonly;
             _limitSize = conn.GetFileSize("limit size", 0);
             var level = conn.GetValue<byte?>("log", null);
 
-         // initialize AES with passoword
-         var password = conn.GetValue<string>("password", null);
-
-         if (!string.IsNullOrEmpty(password))
-         {
-            _useEncryption = true;
-
-            var encryptionFactory = LiteDbPlatform.Platform.EncryptionFactory;
-
-            // hash password to store in header to check
-            _password = encryptionFactory.HashSHA1(password);
-
-            _crypto = encryptionFactory.CreateEncryption(password);
-         }
-
-         // simple validations
-         if (_filename.IsNullOrWhiteSpace()) throw new ArgumentNullException("filename");
+            // simple validations
+            if (_filename.IsNullOrWhiteSpace()) throw new ArgumentNullException("filename");
             if (_initialSize > 0 && _initialSize < BasePage.GetSizeOfPages(10)) throw new ArgumentException("initial size too low");
             if (_limitSize > 0 && _limitSize < BasePage.GetSizeOfPages(10)) throw new ArgumentException("limit size too low");
             if (_initialSize > 0 && _limitSize > 0 && _initialSize > _limitSize) throw new ArgumentException("limit size less than initial size");
@@ -74,15 +56,16 @@ protected bool _readonly;
 
             _journalFilename = Path.Combine(Path.GetDirectoryName(_filename), Path.GetFileNameWithoutExtension(_filename) + "-journal" + Path.GetExtension(_filename));
             _tempFilename = Path.Combine(Path.GetDirectoryName(_filename), Path.GetFileNameWithoutExtension(_filename) + "-temp" + Path.GetExtension(_filename));
+
+            _fileHandler = LitePlatform.Platform.FileHandler;
         }
 
-
-      /// <summary>
-      /// Open datafile - returns true if new
-      /// </summary>
-      public virtual bool Initialize()
+        /// <summary>
+        /// Open datafile - returns true if new
+        /// </summary>
+        public bool Initialize()
         {
-            var exists = FileExists(_filename);
+            var exists = _fileHandler.FileExists(_filename);
 
             if (exists) this.TryRecovery();
 
@@ -94,24 +77,24 @@ protected bool _readonly;
         /// </summary>
         public void CreateNew()
         {
-         // open file as create mode
-         using (var stream = CreateStream(_filename))
-         {
-            _log.Write(Logger.DISK, "initialize new datafile");
-
-            // if has a initial size, reserve this space
-            if (_initialSize > 0)
+            // open file as create mode
+            using (var stream = _fileHandler.CreateFile(_filename, false))
             {
-               _log.Write(Logger.DISK, "initial datafile size {0}", _initialSize);
-               stream.SetLength(_initialSize);
+                _log.Write(Logger.DISK, "initialize new datafile");
+
+                // if has a initial size, reserve this space
+                if (_initialSize > 0)
+                {
+                    _log.Write(Logger.DISK, "initial datafile size {0}", _initialSize);
+                    stream.SetLength(_initialSize);
+                }
+
+                // create a new header page in bytes
+                var bytes = this.CreateHeaderPage().WritePage();
+
+                // write bytes on page
+                stream.Write(bytes, 0, BasePage.PAGE_SIZE);
             }
-
-            // create a new header page in bytes
-            var bytes = this.CreateHeaderPage().WritePage();
-
-            // write bytes on page
-            stream.Write(bytes, 0, BasePage.PAGE_SIZE);
-         }
         }
 
         /// <summary>
@@ -119,33 +102,17 @@ protected bool _readonly;
         /// </summary>
         protected virtual HeaderPage CreateHeaderPage()
         {
-           if (_useEncryption)
-           {
-               return new HeaderPage() { Password = _password };
-           }
-           return new HeaderPage();
+            return new HeaderPage();
         }
 
-       #endregion Initialize disk
+        #endregion Initialize disk
 
-      #region Abstract Methods
+        #region Open/Close
 
-      protected abstract Stream CreateStream(string filename);
-      //protected abstract void InnerLock();
-      //protected abstract void InnerUnlock();
-      protected abstract bool FileExists(string filename);
-      protected abstract FileDiskServiceBase CreateFileDiskService(ConnectionString connectionString, Logger log);
-      protected abstract void DeleteFile(string filepath);
-      protected abstract void OpenExclusiveFile(string filename, Action<Stream> success);
-
-      #endregion
-
-      #region Open/Close
-
-      /// <summary>
-      /// Open datafile if not opened
-      /// </summary>
-      public void Open(bool readOnly)
+        /// <summary>
+        /// Open datafile if not opened
+        /// </summary>
+        public void Open(bool readOnly)
         {
             // checked if database is open in read mode but needs be in write mode
             if (_stream != null && readOnly == false && _stream.CanWrite == false)
@@ -161,12 +128,12 @@ protected bool _readonly;
 
             // read = shared read
             // write = exclusive write
-     
+
             _log.Write(Logger.DISK, "open {0} datafile '{1}', page size {2}", readOnly ? "read" : "write", Path.GetFileName(_filename), BasePage.PAGE_SIZE);
 
             TryExec(() =>
             {
-                _stream = CreateStream(_filename);
+                _stream = _fileHandler.OpenFileAsStream(_filename, readOnly);
             });
         }
 
@@ -186,12 +153,7 @@ protected bool _readonly;
         public virtual void Dispose()
         {
             this.Close();
-
-         if (_crypto != null)
-         {
-            _crypto.Dispose();
-         }
-      }
+        }
 
         #endregion Open/Close
 
@@ -216,26 +178,7 @@ protected bool _readonly;
 
             _log.Write(Logger.DISK, "read page #{0:0000} :: {1}", pageID, (PageType)buffer[PAGE_TYPE_POSITION]);
 
-         if (_useEncryption)
-         {
-            // when read header, checks passoword
-            if (pageID == 0)
-            {
-               // I know, header page will be double read (it's the price for isolated concerns)
-               var header = (HeaderPage)BasePage.ReadPage(buffer);
-
-               if (header.Password.BinaryCompareTo(_password) != 0)
-               {
-                  throw LiteException.DatabaseWrongPassword();
-               }
-
-               return buffer;
-            }
-
-            return _crypto.Decrypt(buffer);
-         }
-
-         return buffer;
+            return buffer;
         }
 
         /// <summary>
@@ -243,12 +186,7 @@ protected bool _readonly;
         /// </summary>
         public virtual void WritePage(uint pageID, byte[] buffer)
         {
-         if (_useEncryption)
-         {
-            buffer = pageID == 0 ? buffer : _crypto.Encrypt(buffer);
-         }
-
-         var position = BasePage.GetSizeOfPages(pageID);
+            var position = BasePage.GetSizeOfPages(pageID);
 
             _log.Write(Logger.DISK, "write page #{0:0000} :: {1}", pageID, (PageType)buffer[PAGE_TYPE_POSITION]);
 
@@ -292,7 +230,7 @@ protected bool _readonly;
                 {
                     _log.Write(Logger.JOURNAL, "create journal file");
 
-                    _journal = CreateStream(_journalFilename);
+                    _journal = _fileHandler.CreateFile(_journalFilename, true);
                 });
             }
 
@@ -320,7 +258,7 @@ protected bool _readonly;
                 _journal = null;
 
                 // remove journal file
-                this.TryExec(() => DeleteFile(_journalFilename));
+                this.TryExec(() => _fileHandler.DeleteFile(_journalFilename));
             }
         }
 
@@ -333,10 +271,10 @@ protected bool _readonly;
             if (!_journalEnabled) return;
 
             // avoid debug window always throw an exception if file didn't exists
-            if (!FileExists(_journalFilename))  return;
+            if (!_fileHandler.FileExists(_journalFilename)) return;
 
             // if I can open journal file, test FINISH_POSITION. If no journal, do not call action()
-            this.OpenExclusiveFile(_journalFilename, (journal) =>
+            _fileHandler.OpenExclusiveFile(_journalFilename, (journal) =>
             {
                 this.Open(false);
 
@@ -349,7 +287,7 @@ protected bool _readonly;
                 journal.Dispose();
 
                 // delete journal - datafile finish
-                this.TryExec(() => DeleteFile(_journalFilename));
+                this.TryExec(() => _fileHandler.DeleteFile(_journalFilename));
 
                 _log.Write(Logger.RECOVERY, "recovery finish");
 
@@ -392,22 +330,22 @@ protected bool _readonly;
             _stream.SetLength(fileSize);
         }
 
-      #endregion Recovery datafile
+        #endregion Recovery datafile
 
-      #region Temporary
+        #region Temporary
 
-      public IDiskService GetTempDisk()
+        public IDiskService GetTempDisk()
         {
             // if exists, delete first
             this.DeleteTempDisk();
 
             // no journal, no logger
-            return CreateFileDiskService(new ConnectionString("filename=" + _tempFilename + ";journal=false"), new Logger());
+            return new FileDiskService(new ConnectionString("filename=" + _tempFilename + ";journal=false"), new Logger());
         }
 
         public void DeleteTempDisk()
         {
-           DeleteFile(_tempFilename);
+            _fileHandler.DeleteFile(_tempFilename);
         }
 
         #endregion Temporary
@@ -417,7 +355,7 @@ protected bool _readonly;
         /// <summary>
         /// Try run an operation over datafile - keep tring if locked
         /// </summary>
-        protected void TryExec(Action action)
+        private void TryExec(Action action)
         {
             var timer = DateTime.UtcNow.Add(_timeout);
 
@@ -430,7 +368,7 @@ protected bool _readonly;
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    LiteDbPlatform.Platform.WaitFor(250);
+                    LitePlatform.Platform.WaitFor(250);
                 }
                 catch (IOException ex)
                 {

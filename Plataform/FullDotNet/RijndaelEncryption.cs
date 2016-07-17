@@ -1,55 +1,33 @@
-﻿#if !NETCORE && !PCL
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.IO;
 using System.Text;
-using LiteDB.Interfaces;
+using LiteDB.Plataform;
 
-namespace LiteDB
+namespace LiteDB.Plataform
 {
     /// <summary>
     /// Simple Rijndael wrapper to encrypt data pages (based in http://stackoverflow.com/questions/165808/simple-two-way-encryption-for-c-sharp)
     /// </summary>
-    internal class SimpleAES : IEncryption
+    public class RijndaelEncryption : IEncryption
     {
         private static readonly byte[] SALT = new byte[] { 0x16, 0xae, 0xbf, 0x20, 0x01, 0xa0, 0xa9, 0x52, 0x34, 0x1a, 0x45, 0x55, 0x4a, 0xe1, 0x32, 0x1d };
 
         private Rijndael _rijndael;
 
-      public static string ToHex( byte[] bytes)
-      {
-         char[] c = new char[bytes.Length * 2];
-
-         byte b;
-
-         for (int bx = 0, cx = 0; bx < bytes.Length; ++bx, ++cx)
-         {
-            b = ((byte)(bytes[bx] >> 4));
-            c[cx] = (char)(b > 9 ? b + 0x37 + 0x20 : b + 0x30);
-
-            b = ((byte)(bytes[bx] & 0x0F));
-            c[++cx] = (char)(b > 9 ? b + 0x37 + 0x20 : b + 0x30);
-         }
-
-         return new string(c);
-      }
-
-      public SimpleAES(string password)
+        public RijndaelEncryption(string password)
         {
             _rijndael = Rijndael.Create();
             _rijndael.Padding = PaddingMode.Zeros;
             Rfc2898DeriveBytes pdb = null;
             try
             {
-            
+
                 pdb = new Rfc2898DeriveBytes(password, SALT);
                 _rijndael.Key = pdb.GetBytes(32);
-            //Debug.WriteLine("Key = "+ ToHex(_rijndael.Key));
                 _rijndael.IV = pdb.GetBytes(16);
-
-            //Debug.WriteLine("IV = " + ToHex(_rijndael.IV));
-         }
+            }
             finally
             {
                 IDisposable disp = pdb as IDisposable;
@@ -75,7 +53,7 @@ namespace LiteDB
                 stream.Position = 0;
                 var encrypted = new byte[stream.Length];
                 stream.Read(encrypted, 0, encrypted.Length);
-            
+
                 return encrypted;
             }
         }
@@ -95,7 +73,7 @@ namespace LiteDB
                 var decryptedBytes = new Byte[stream.Length];
                 stream.Read(decryptedBytes, 0, decryptedBytes.Length);
 
-            return decryptedBytes;
+                return decryptedBytes;
             }
         }
 
@@ -106,10 +84,7 @@ namespace LiteDB
         {
             var sha = new SHA1CryptoServiceProvider();
             var shaBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
-
-         //Debug.WriteLine("Sha1 "+ ToHex(shaBytes));
-
-         return shaBytes;
+            return shaBytes;
         }
 
         public void Dispose()
@@ -122,4 +97,3 @@ namespace LiteDB
         }
     }
 }
-#endif
