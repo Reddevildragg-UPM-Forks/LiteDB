@@ -1,0 +1,17 @@
+{
+  "name": "com.litedb",
+  "displayName": "Lite DB",
+  "description": "Lite Db nosql storage, https://www.litedb.org/",
+  "version": "4.1.401",
+  "unity": "2019.3",
+  "license": null,
+  "author": {
+    "name": "LiteDB",
+    "email": null,
+    "url": null
+  },
+  "repository": null,
+  "bugs": null,
+  "homepage": null,
+  "publishDate": "2020-09-22T14:44:46.9921124Z"
+}
