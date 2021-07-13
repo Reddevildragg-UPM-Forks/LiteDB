@@ -2,7 +2,7 @@
   "name": "com.mbdavid.litedb",
   "displayName": "Lite DB",
   "description": "Lite Db nosql storage, https://www.litedb.org/",
-  "version": "4.1.401",
+  "version": "4.1.402",
   "unity": "2019.3",
   "license": null,
   "author": {
