@@ -1,5 +1,5 @@
 {
-  "name": "com.litedb",
+  "name": "com.mbdavid.litedb",
   "displayName": "Lite DB",
   "description": "Lite Db nosql storage, https://www.litedb.org/",
   "version": "4.1.401",
